@@ -1,0 +1,22 @@
+
+  "name": "CNCMasterPro v37",
+  "short_name": "CNCMaster",
+  "description": "Calculador e Simulador de G-Code Polar",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#1c1c1e",
+  "theme_color": "#007aff",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icone.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icone.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
