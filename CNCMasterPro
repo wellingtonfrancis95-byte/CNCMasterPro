@@ -1,20 +1,15 @@
-DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    
     <title>CNCMasterPro</title>
-    
     <link rel="manifest" href="manifest.json">
-    
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="CNCMaster">
     <link rel="apple-touch-icon" href="icone.png">
-    
     <meta name="theme-color" content="#1c1c1e">
-    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <style>
@@ -26,26 +21,8 @@ DOCTYPE html>
             --accent: #ff9500; 
             --safe-area-top: env(safe-area-inset-top);
         }
-        
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-            background: var(--bg); 
-            margin: 0; 
-            padding: 0; 
-            overflow-x: hidden;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        .app-header {
-            background: var(--dark);
-            color: white;
-            padding: calc(var(--safe-area-top) + 10px) 15px 10px;
-            text-align: center;
-            font-weight: bold;
-            font-size: 1.1rem;
-            border-bottom: 2px solid var(--primary);
-        }
-
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); margin: 0; padding: 0; overflow-x: hidden; -webkit-tap-highlight-color: transparent; }
+        .app-header { background: var(--dark); color: white; padding: calc(var(--safe-area-top) + 10px) 15px 10px; text-align: center; font-weight: bold; font-size: 1.1rem; border-bottom: 2px solid var(--primary); }
         #viewport-3d { width: 100%; height: 30vh; background: #050505; position: relative; }
         .container { padding: 15px; max-width: 800px; margin: 0 auto; padding-bottom: 60px; }
         .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 15px; }
@@ -251,8 +228,8 @@ function gerar() {
     g += eob(`#107 = ${AZ} (APROXIMACAO Z)`) + "\n";
     
     if (op.includes("polar") || op === "cavidade_circ") {
-        g += eob(`#130 = ${R_P} (RAIO FINAL)`) + "\n";
-        g += eob(`#131 = ${A_I} (ANGULO/REF)`) + "\n";
+        g += eob(`#130 = ${R_P} (RAIO PCD)`) + "\n";
+        g += eob(`#131 = ${A_I} (ANGULO INICIAL)`) + "\n";
     }
 
     g += "\n";
@@ -276,14 +253,36 @@ function gerar() {
         g += eob("END 1") + "\n";
         g += eob("G0 Z#107 M9 M5") + "\n";
     } else if (op.includes("polar")) {
-        let cicloT1 = op === "polar_centro_furo" ? `G81 X#130 Y#131 Z-3.0 R#107 F[#105/2]` : `G83 X#130 Y#131 Z-#102 Q#103 R#107 F#105`;
-        g += eob("T01 M6") + "\n";
-        g += eob("G17 G21 G90 G94") + "\nG54 S#104 M3\n";
-        g += eob("G16 G0 X#100 Y#101") + "\n"; 
+        let cicloT1 = (op === "polar_centro_furo" || op === "polar_rosca") ? `G81 X#130 Y#131 Z-3.0 R#107 F[#105/2]` : `G83 X#130 Y#131 Z-#102 Q#103 R#107 F#105`;
+        g += eob("T01 M6 (FERRAMENTA 1)") + "\n";
+        g += eob("G17 G21 G90 G94") + "\n";
+        g += eob("G54 S#104 M3") + "\n";
+        g += eob("G0 X#100 Y#101") + "\n"; 
+        g += eob("G16") + "\n"; 
         g += eob(`G43 Z#107 H${H1} M8`) + "\n";
-        g += eob("G98 " + cicloT1) + "\n";
-        g += eob("Y90.0") + "\nY180.0\nY270.0\n";
+        g += eob(`G98 ${cicloT1}`) + "\n";
+        g += eob("Y[#131+90.0]") + "\nY[#131+180.0]\nY[#131+270.0]\n";
         g += eob("G15 G80 M9 M5") + "\n";
+        
+        if(op === "polar_rosca") {
+            g += eob("\nT02 M6 (MACHO)") + "\n";
+            g += eob(`G54 S${RM} M3`) + "\n";
+            g += eob("G0 X#100 Y#101\nG16") + "\n";
+            g += eob(`G43 Z#107 H${H2} M8`) + "\n";
+            g += eob(`G98 G84 X#130 Y#131 Z-${ZR} R#107 F[${RM}*#103]`) + "\n";
+            g += eob("Y[#131+90.0]") + "\nY[#131+180.0]\nY[#131+270.0]\n";
+            g += eob("G15 G80 M9 M5") + "\n";
+        }
+    } else if (op === "furo_rosca") {
+        g += eob("T01 M6 (BROCA)") + "\n";
+        g += eob("G17 G21 G90 G94\nG54 S#104 M3\nG0 X#100 Y#101") + "\n";
+        g += eob(`G43 Z#107 H${H1} M8`) + "\n";
+        g += eob("G98 G83 Z-#102 Q#103 R#107 F#105") + "\n";
+        g += eob("G80 M5\n\nT02 M6 (MACHO)") + "\n";
+        g += eob(`G54 S${RM} M3\nG0 X#100 Y#101`) + "\n";
+        g += eob(`G43 Z#107 H${H2} M8`) + "\n";
+        g += eob(`G98 G84 Z-${ZR} R#107 F[${RM}*#103]`) + "\n";
+        g += eob("G80 M9 M5") + "\n";
     } else {
         let ciclo = (op === "g81") ? "G81" : (op === "g73" ? "G73" : "G83");
         g += eob("T01 M6") + "\nG17 G21 G90 G94\nG54 S#104 M3\nG0 X#100 Y#101\n";
@@ -307,7 +306,6 @@ function baixar() {
     a.click();
 }
 
-// Registro do Service Worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js');
