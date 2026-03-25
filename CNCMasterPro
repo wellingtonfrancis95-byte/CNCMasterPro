@@ -1,0 +1,318 @@
+DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <title>CNCMasterPro</title>
+    
+    <link rel="manifest" href="manifest.json">
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="CNCMaster">
+    <link rel="apple-touch-icon" href="icone.png">
+    
+    <meta name="theme-color" content="#1c1c1e">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <style>
+        :root { 
+            --primary: #007aff; 
+            --success: #34c759; 
+            --dark: #1c1c1e; 
+            --bg: #f2f2f7; 
+            --accent: #ff9500; 
+            --safe-area-top: env(safe-area-inset-top);
+        }
+        
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            background: var(--bg); 
+            margin: 0; 
+            padding: 0; 
+            overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .app-header {
+            background: var(--dark);
+            color: white;
+            padding: calc(var(--safe-area-top) + 10px) 15px 10px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.1rem;
+            border-bottom: 2px solid var(--primary);
+        }
+
+        #viewport-3d { width: 100%; height: 30vh; background: #050505; position: relative; }
+        .container { padding: 15px; max-width: 800px; margin: 0 auto; padding-bottom: 60px; }
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 15px; }
+        h2 { font-size: 0.85rem; margin: 0 0 10px 0; color: var(--primary); text-transform: uppercase; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        label { font-size: 10px; font-weight: bold; color: #8e8e93; display: block; margin-bottom: 3px; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #d1d1d6; border-radius: 10px; font-size: 16px; box-sizing: border-box; background: #fff; }
+        .stats { display: flex; justify-content: space-around; background: var(--dark); color: #fff; padding: 15px; border-radius: 12px; margin: 10px 0; }
+        .stats div { text-align: center; font-size: 10px; color: var(--success); }
+        .stats span { display: block; font-size: 18px; font-weight: bold; color: #fff; }
+        textarea { width: 100%; height: 300px; background: #000; color: #32d74b; font-family: monospace; padding: 12px; border-radius: 10px; font-size: 12px; border: none; margin-top: 10px; resize: none; outline: none; }
+        .btn-play { background: var(--success); color: white; border: none; padding: 16px; border-radius: 12px; width: 100%; font-weight: bold; font-size: 16px; cursor: pointer; margin-bottom: 15px; box-shadow: 0 4px 0 #248a3d; }
+        .btn-play:active { transform: translateY(2px); box-shadow: 0 2px 0 #248a3d; }
+        .btn-main { background: var(--primary); color: white; border: none; padding: 16px; border-radius: 12px; width: 100%; font-weight: bold; font-size: 16px; margin-top: 10px; }
+        .polar-section { border: 1px dashed var(--accent); padding: 10px; border-radius: 8px; grid-column: span 2; margin-top: 5px; background: #fffaf0; }
+    </style>
+</head>
+<body>
+
+<div class="app-header">CNCMasterPro v37</div>
+<div id="viewport-3d"></div>
+
+<div class="container">
+    <button class="btn-play" onclick="executarUsinagem()">🚀 SIMULAR AGORA</button>
+
+    <div class="card">
+        <h2>⚙️ Parâmetros de Usinagem</h2>
+        <div class="grid">
+            <div><label>Operação</label>
+                <select id="op" onchange="togglePolarInputs(); resetSim();">
+                    <option value="furo_rosca">Furo (G83) + Rosca (G84)</option>
+                    <option value="centro_furo">Centro (G81) + Furo (G83)</option>
+                    <option value="polar_centro_furo">Polar: Centro + Furo</option>
+                    <option value="chaveta">Rasgo de Chaveta (WHILE)</option>
+                    <option value="cavidade_circ">Cavidade Circular</option>
+                    <option value="g81">Furação Simples (G81)</option>
+                    <option value="g73">Quebra-Cavaco (G73)</option>
+                    <option value="g83">Pica-Pau Profundo (G83)</option>
+                    <option value="polar_furo">Furação Polar G16</option>
+                    <option value="polar_rosca">Furo + Rosca Polar</option>
+                </select>
+            </div>
+            <div><label>Ø Ferr. (#104)</label><input id="diam" type="number" value="12" oninput="resetSim()"></div>
+            <div><label>Vc (m/min)</label><input id="vc" type="number" value="80" oninput="gerar()"></div>
+            <div><label>Nº Facas (Z)</label><input id="facas" type="number" value="2" oninput="gerar()"></div>
+            <div><label>fz (mm/z)</label><input id="fz" type="number" value="0.05" step="0.01" oninput="gerar()"></div>
+            <div><label>ap (Passo Z)</label><input id="ap_calc" type="number" value="2.0" step="0.1" oninput="gerar()"></div>
+
+            <div id="polar_params" class="polar-section" style="display:none;">
+                <div class="grid">
+                    <div><label>Raio PCD (#130)</label><input id="raio_polar" type="number" value="50" oninput="resetSim()"></div>
+                    <div><label>Ângulo Inicial (#131)</label><input id="ang_init" type="number" value="0" oninput="resetSim()"></div>
+                </div>
+            </div>
+
+            <div><label>RPM Macho</label><input id="rpm_macho" type="number" value="300" oninput="gerar()"></div>
+            <div><label>Prof. Broca (#102)</label><input id="zprof" type="number" value="25" oninput="resetSim()"></div>
+            <div><label>Prof. Rosca</label><input id="zrosca" type="number" value="20" oninput="gerar()"></div>
+            <div><label>Q (Incremental)</label><input id="ap" type="number" value="1.5" oninput="resetSim()"></div>
+            <div><label>Segurança Z</label><input id="aproxZ" type="number" value="5.0" oninput="gerar()"></div>
+            <div><label>X Centro</label><input id="posX" type="number" value="0" oninput="resetSim()"></div>
+            <div><label>Y Centro</label><input id="posY" type="number" value="0" oninput="resetSim()"></div>
+            <div><label>H1 / H2</label>
+                <div style="display: flex; gap: 5px;">
+                    <input id="h1" type="number" value="1" oninput="gerar()">
+                    <input id="h2" type="number" value="2" oninput="gerar()">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="stats">
+        <div>RPM<span id="rpm">0</span></div>
+        <div>F (mm/min)<span id="feed">0</span></div>
+        <div>PASSOS<span id="feedRosca">0</span></div>
+    </div>
+
+    <div class="card">
+        <h2>📄 Código G-Code</h2>
+        <textarea id="out" readonly></textarea>
+        <button class="btn-main" onclick="baixar()">💾 SALVAR PROGRAMA .NC</button>
+    </div>
+</div>
+
+<script>
+let scene, camera, renderer, tool, visualCuts = [], isBusy = false;
+
+function init3D() {
+    const container = document.getElementById('viewport-3d');
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(40, container.clientWidth / container.clientHeight, 1, 1000);
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(renderer.domElement);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+    const l1 = new THREE.PointLight(0xffffff, 1); l1.position.set(50, 50, 100); scene.add(l1);
+    const matWP = new THREE.MeshPhongMaterial({ color: 0x444444, transparent: true, opacity: 0.8 });
+    const workpiece = new THREE.Mesh(new THREE.BoxGeometry(160, 160, 30), matWP);
+    workpiece.position.z = -15.1; scene.add(workpiece);
+    tool = new THREE.Group();
+    atualizarGeometriaFerramenta();
+    scene.add(tool);
+    camera.position.set(110, -130, 110); camera.lookAt(0, 0, -10);
+    animate();
+}
+
+function togglePolarInputs() {
+    const op = document.getElementById("op").value;
+    document.getElementById("polar_params").style.display = (op.includes("polar") || op === "cavidade_circ") ? "block" : "none";
+}
+
+function atualizarGeometriaFerramenta() {
+    while(tool.children.length > 0) tool.remove(tool.children[0]);
+    const op = document.getElementById("op").value;
+    const D = parseFloat(document.getElementById("diam").value) / 2;
+    const corpo = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 45, 32), new THREE.MeshPhongMaterial({ color: 0x999999 }));
+    tool.add(corpo);
+    const color = (op.includes("rosca") || op.includes("centro")) ? 0xffd700 : 0xcccccc;
+    const ponta = new THREE.Mesh(new THREE.CylinderGeometry(D, (op === "chaveta" || op === "cavidade_circ") ? D : 0, 10, 32), new THREE.MeshPhongMaterial({ color: color }));
+    ponta.position.y = -27; tool.add(ponta);
+    tool.rotation.x = Math.PI / 2;
+}
+
+function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); if(isBusy) tool.rotation.y += 0.2; }
+function resetSim() { visualCuts.forEach(c => scene.remove(c)); visualCuts = []; atualizarGeometriaFerramenta(); gerar(); }
+
+function executarUsinagem() {
+    if (isBusy) return; isBusy = true; resetSim();
+    const op = document.getElementById("op").value;
+    const D = parseFloat(document.getElementById("diam").value);
+    const Z = parseFloat(document.getElementById("zprof").value);
+    let time = 0;
+
+    if (op === "cavidade_circ") {
+        const X = parseFloat(document.getElementById("posX").value);
+        const Y = parseFloat(document.getElementById("posY").value);
+        const R = parseFloat(document.getElementById("raio_polar").value);
+        const Q = parseFloat(document.getElementById("ap").value);
+        setTimeout(() => { tool.position.set(X, Y, 30); }, time += 200);
+        for (let p = Q; p <= Z; p += Q) {
+            setTimeout(() => { tool.position.z = 30 - p; }, time += 300);
+            setTimeout(() => { criarFuro(X, Y, p, R*2); }, time += 400);
+        }
+    } else if (op.includes("polar")) {
+        const R = parseFloat(document.getElementById("raio_polar").value);
+        const startAng = parseFloat(document.getElementById("ang_init").value) * (Math.PI / 180);
+        let px = Math.cos(startAng) * R; let py = Math.sin(startAng) * R;
+        setTimeout(() => { tool.position.set(px, py, 30); }, time += 400);
+        setTimeout(() => { tool.position.z = 30 - Z; }, time += 300);
+        setTimeout(() => { tool.position.z = 30; criarFuro(px, py, Z, D); }, time += 300);
+    } else if (op === "chaveta") {
+        const X = parseFloat(document.getElementById("posX").value);
+        const Y = parseFloat(document.getElementById("posY").value);
+        const Q = parseFloat(document.getElementById("ap").value);
+        for (let p = Q; p <= Z; p += Q) {
+            setTimeout(() => { tool.position.z = 30 - p; }, time += 200);
+            setTimeout(() => { tool.position.x += 25; criarCorte(X, Y, p, 50, D); }, time += 400);
+            setTimeout(() => { tool.position.x -= 25; }, time += 300);
+        }
+    } else {
+        const X = parseFloat(document.getElementById("posX").value);
+        const Y = parseFloat(document.getElementById("posY").value);
+        setTimeout(() => { tool.position.set(X, Y, 30); }, time += 200);
+        setTimeout(() => { tool.position.z = 30 - Z; }, time += 400);
+        setTimeout(() => { tool.position.z = 30; criarFuro(X, Y, Z, D); }, time += 300);
+    }
+    setTimeout(() => { isBusy = false; }, time + 500);
+}
+
+function criarFuro(x, y, z, d) {
+    const f = new THREE.Mesh(new THREE.CylinderGeometry(d/2, d/2, z+0.2, 32), new THREE.MeshPhongMaterial({ color: 0x000000 }));
+    f.rotation.x = Math.PI/2; f.position.set(x, y, -z/2); scene.add(f); visualCuts.push(f);
+}
+
+function criarCorte(x, y, z, l, d) {
+    const r = new THREE.Mesh(new THREE.BoxGeometry(l, d, z+0.2), new THREE.MeshPhongMaterial({ color: 0x000000 }));
+    r.position.set(x + 12.5, y, -z/2); scene.add(r); visualCuts.push(r);
+}
+
+function gerar() {
+    const op = document.getElementById("op").value;
+    const X = document.getElementById("posX").value, Y = document.getElementById("posY").value;
+    const ZB = document.getElementById("zprof").value, ZR = document.getElementById("zrosca").value;
+    const Q = document.getElementById("ap").value, D = document.getElementById("diam").value;
+    const AZ = document.getElementById("aproxZ").value, RM = document.getElementById("rpm_macho").value;
+    const H1 = document.getElementById("h1").value, H2 = document.getElementById("h2").value;
+    const VC = parseFloat(document.getElementById("vc").value), ZF = parseFloat(document.getElementById("facas").value), FZ = parseFloat(document.getElementById("fz").value);
+    const R_P = document.getElementById("raio_polar").value, A_I = document.getElementById("ang_init").value;
+
+    const rpmB = Math.round((VC * 1000) / (Math.PI * parseFloat(D)));
+    const feed = Math.round(rpmB * ZF * FZ);
+    document.getElementById("rpm").innerText = rpmB; document.getElementById("feed").innerText = feed; document.getElementById("feedRosca").innerText = Q;
+
+    const eob = (l) => l + " ;";
+    let g = "% ;\nO1000 (CNCMasterPro) ;\n\n";
+    g += eob("(VARIAVEIS)") + "\n";
+    g += eob(`#100 = ${X} (X CENTRO)`) + "\n";
+    g += eob(`#101 = ${Y} (Y CENTRO)`) + "\n";
+    g += eob(`#102 = ${ZB} (PROFUNDIDADE)`) + "\n";
+    g += eob(`#103 = ${Q} (Q/PASSO)`) + "\n";
+    g += eob(`#104 = ${rpmB} (RPM)`) + "\n";
+    g += eob(`#105 = ${feed} (AVANCO)`) + "\n";
+    g += eob(`#107 = ${AZ} (APROXIMACAO Z)`) + "\n";
+    
+    if (op.includes("polar") || op === "cavidade_circ") {
+        g += eob(`#130 = ${R_P} (RAIO FINAL)`) + "\n";
+        g += eob(`#131 = ${A_I} (ANGULO/REF)`) + "\n";
+    }
+
+    g += "\n";
+
+    if (op === "cavidade_circ") {
+        g += eob("(CAVIDADE CIRCULAR)") + "\n";
+        g += eob("T01 M6") + "\n";
+        g += eob("G17 G21 G90 G94") + "\n";
+        g += eob("G54 S#104 M3") + "\n";
+        g += eob("G0 X#100 Y#101") + "\n";
+        g += eob(`G43 Z#107 H${H1} M8`) + "\n";
+        g += eob("#110 = 0 (Z ATUAL)") + "\n";
+        g += eob("#111 = [#130 - [" + D + "/2]] (RAIO EFETIVO)") + "\n";
+        g += eob("WHILE [#110 LT #102] DO 1") + "\n";
+        g += eob("  #110 = #110 + " + document.getElementById("ap_calc").value) + "\n";
+        g += eob("  IF [#110 GT #102] THEN #110 = #102") + "\n";
+        g += eob("  G1 Z-[#110] F[#105/2]") + "\n";
+        g += eob("  G1 X[#100+#111] F#105") + "\n";
+        g += eob("  G3 I-#111") + "\n";
+        g += eob("  G1 X#100") + "\n";
+        g += eob("END 1") + "\n";
+        g += eob("G0 Z#107 M9 M5") + "\n";
+    } else if (op.includes("polar")) {
+        let cicloT1 = op === "polar_centro_furo" ? `G81 X#130 Y#131 Z-3.0 R#107 F[#105/2]` : `G83 X#130 Y#131 Z-#102 Q#103 R#107 F#105`;
+        g += eob("T01 M6") + "\n";
+        g += eob("G17 G21 G90 G94") + "\nG54 S#104 M3\n";
+        g += eob("G16 G0 X#100 Y#101") + "\n"; 
+        g += eob(`G43 Z#107 H${H1} M8`) + "\n";
+        g += eob("G98 " + cicloT1) + "\n";
+        g += eob("Y90.0") + "\nY180.0\nY270.0\n";
+        g += eob("G15 G80 M9 M5") + "\n";
+    } else {
+        let ciclo = (op === "g81") ? "G81" : (op === "g73" ? "G73" : "G83");
+        g += eob("T01 M6") + "\nG17 G21 G90 G94\nG54 S#104 M3\nG0 X#100 Y#101\n";
+        g += eob(`G43 Z#107 H${H1} M8`) + "\n";
+        g += eob(`G98 ${ciclo} Z-#102 ${ciclo === "G81" ? "" : "Q#103"} R#107 F#105`) + "\n";
+        g += eob("G80 M9 M5") + "\n";
+    }
+
+    g += eob("G53 G0 Z0 H0") + "\nM30\n%";
+    document.getElementById("out").value = g;
+}
+
+window.onload = () => { init3D(); togglePolarInputs(); gerar(); };
+
+function baixar() {
+    let gcode = document.getElementById("out").value;
+    const blob = new Blob([gcode.replace(/\n/g, "\r\n")], {type: "text/plain;charset=utf-8"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "PROG_CNC.NC"; 
+    a.click();
+}
+
+// Registro do Service Worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js');
+  });
+}
+</script>
+</body>
+</html>
